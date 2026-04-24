@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指尖三国：谋定天下 (静态部署版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Zhi+Mang+Xing&display=swap');
+
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Microsoft YaHei', sans-serif; user-select: none; color: #fff; }
+        #game-container { display: flex; flex-direction: column; height: 100vh; max-width: 1000px; margin: 0 auto; background-color: #1a1512; box-shadow: 0 0 50px rgba(0,0,0,1); border-left: 4px solid #5d4037; border-right: 4px solid #5d4037; position: relative; }
+        #top-bar { background: linear-gradient(to bottom, #2d1e16, #140d09); padding: 10px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #bcaaa4; box-shadow: 0 5px 15px rgba(0,0,0,0.8); z-index: 10; }
+        #canvas-wrapper { flex-grow: 1; position: relative; background-color: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        canvas { display: block; background-color: transparent; cursor: crosshair; box-shadow: inset 0 0 50px rgba(0,0,0,1); }
+        #bottom-bar { background: linear-gradient(to top, #140d09, #2d1e16); padding: 15px; border-top: 2px solid #bcaaa4; display: flex; justify-content: center; gap: 15px; z-index: 10; }
+
+        .tower-btn { background: linear-gradient(to bottom, #3e2723, #1b100b); border: 2px solid #5d4037; border-radius: 6px; padding: 10px; color: #d7ccc8; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; width: 100px; position: relative; }
+        .tower-btn:hover:not(.locked):not(.disabled) { border-color: #ffb300; transform: translateY(-5px); box-shadow: 0 8px 15px rgba(255, 179, 0, 0.3); }
+        .tower-btn.selected { border-color: #e53935; background: linear-gradient(to bottom, #5c1e1e, #2b0d0d); transform: translateY(-3px) scale(1.05); }
+        .tower-btn.disabled { opacity: 0.5; filter: grayscale(100%); cursor: not-allowed; }
+        .tower-btn.locked { opacity: 0.3; filter: grayscale(100%) brightness(0.5); cursor: not-allowed; }
+        .tower-icon { width: 50px; height: 50px; border-radius: 4px; margin-bottom: 8px; background: #000; border: 2px solid #8d6e63; }
+        .stat-box { background: rgba(0,0,0,0.6); padding: 6px 15px; border-radius: 4px; border: 1px solid #795548; display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 1.1rem; }
+        #strategy-bar-container { width: 200px; height: 22px; background: #000; border: 1px solid #29b6f6; border-radius: 11px; overflow: hidden; position: relative; }
+        #strategy-bar { width: 0%; height: 100%; background: linear-gradient(90deg, #0277bd, #29b6f6); transition: width 0.2s; }
+        #strategy-text { position: absolute; width: 100%; text-align: center; font-size: 12px; line-height: 22px; color: white; font-weight: bold; top: 0; left: 0; text-shadow: 1px 1px 2px black; }
+
+        .overlay-menu { position: absolute; inset: 0; background: rgba(10, 5, 0, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; backdrop-filter: blur(5px); }
+        .menu-panel { background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="%232c1e16" /><path d="M0,50 Q25,25 50,50 T100,50" stroke="%233e2723" fill="none" opacity="0.3"/></svg>'); border: 4px solid #8d6e63; padding: 40px; text-align: center; box-shadow: 0 0 30px rgba(0,0,0,1); max-width: 600px; width: 90%; border-radius: 8px; }
+        .title-text { font-family: 'Zhi Mang Xing', cursive; font-size: 4.5rem; color: #ffb300; text-shadow: 3px 3px 0 #b71c1c; margin-bottom: 10px; }
+        .btn-main { background: linear-gradient(to bottom, #d32f2f, #b71c1c); border: 2px solid #ffca28; color: #fff; padding: 12px 30px; font-size: 1.5rem; font-family: 'Zhi Mang Xing', cursive; cursor: pointer; transition: all 0.2s; border-radius: 4px; margin: 10px; min-width: 180px; }
+        .btn-main:hover { transform: scale(1.05); background: linear-gradient(to bottom, #f44336, #d32f2f); box-shadow: 0 0 15px rgba(255, 202, 40, 0.5); }
+        .btn-sub { background: #3e2723; border: 1px solid #8d6e63; color: #d7ccc8; padding: 8px 20px; cursor: pointer; margin: 5px; border-radius: 4px; transition: all 0.2s; }
+        .btn-sub:hover { background: #5d4037; color: #fff; border-color: #ffb300; }
+        .btn-ai { background: linear-gradient(to right, #1565c0, #0277bd); border-color: #4fc3f7; font-weight: bold; position: relative; overflow: hidden; }
+        .btn-ai::after { content: '✨'; position: absolute; top: -5px; right: -5px; font-size: 10px; opacity: 0.8; }
+        .lock-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: 12px; color: #ff5252; font-weight: bold; border-radius: 6px; }
+        #hud-tools { position: absolute; top: 80px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 20; }
+
+        #combo-display { position: absolute; top: 120px; left: 50%; transform: translateX(-50%) scale(0.5); font-family: 'Zhi Mang Xing', cursive; font-size: 4rem; color: #ffca28; text-shadow: 0 0 15px #e65100, 3px 3px 0 #000; opacity: 0; pointer-events: none; z-index: 30; transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        #combo-display.active { opacity: 1; transform: translateX(-50%) scale(1); }
+        #toast-msg { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(255, 179, 0, 0.9); color: #000; padding: 10px 30px; border-radius: 20px; font-weight: bold; opacity: 0; transition: opacity 0.3s; z-index: 100; pointer-events: none; }
+
+        #ai-advisor-panel { display: none; position: absolute; top: 100px; left: 50%; transform: translateX(-50%); background: linear-gradient(to bottom, #1e3a5f, #0d1b2a); border: 2px solid #64b5f6; padding: 20px; border-radius: 10px; width: 400px; z-index: 60; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        #ai-avatar { font-family: 'Zhi Mang Xing', cursive; font-size: 3rem; color: #81d4fa; text-shadow: 0 0 10px #0277bd; margin-right: 15px; }
+        #ai-text-box { color: #e1f5fe; font-size: 14px; line-height: 1.6; min-height: 80px; }
+        .typing-indicator { display: inline-block; width: 6px; height: 16px; background-color: #fff; animation: blink 1s step-end infinite; margin-left: 3px; vertical-align: -2px; }
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
+</head>
+<body>
+<div id="game-container">
+    <div id="top-bar">
+        <div class="flex gap-4">
+            <div class="stat-box" title="城池生命值"><span class="text-red-500">♥</span> <span id="lives-display">10</span></div>
+            <div class="stat-box" title="军费"><span class="text-yellow-500">💰</span> <span id="money-display">350</span></div>
+            <div class="stat-box">战局: <span id="wave-display" class="text-green-400">第 1 波</span></div>
+        </div>
+        <div class="flex flex-col items-center">
+            <div id="strategy-bar-container">
+                <div id="strategy-bar"></div>
+                <div id="strategy-text">0 / 100 谋略</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="hud-tools">
+        <button class="btn-sub btn-ai" id="btn-advisor">智囊妙计</button>
+        <button class="btn-sub" id="btn-theme">切换地貌</button>
+        <button class="btn-sub" id="btn-save">本地存档</button>
+        <button class="btn-sub" id="btn-load">读取进度</button>
+        <button class="btn-sub" id="btn-menu">主菜单</button>
+    </div>
+
+    <div id="canvas-wrapper">
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
+        <div id="combo-display">连斩 x2!</div>
+        <div id="toast-msg"></div>
+
+        <div id="ai-advisor-panel">
+            <div class="flex items-start">
+                <div id="ai-avatar">亮</div>
+                <div class="flex-grow">
+                    <h3 class="text-blue-300 font-bold mb-2 border-b border-blue-800 pb-1">诸葛武侯 战术推演</h3>
+                    <div id="ai-text-box">主公，臣正在推演破敌之策...<span class="typing-indicator"></span></div>
+                </div>
+            </div>
+            <button class="mt-4 w-full bg-blue-900 hover:bg-blue-700 border border-blue-500 text-white rounded py-1" onclick="document.getElementById('ai-advisor-panel').style.display='none'">拜谢军师</button>
+        </div>
+
+        <div id="main-menu" class="overlay-menu">
+            <div class="menu-panel">
+                <div class="title-text">指尖三国</div>
+                <p class="text-gray-300 mb-6">谋定天下 · 静态部署版</p>
+                <div class="flex flex-col gap-4 items-center">
+                    <button class="btn-main" id="btn-campaign">剧情模式 (10波通关)</button>
+                    <button class="btn-main" id="btn-endless">无尽模式 (轮回挑战)</button>
+                </div>
+                <div class="mt-6 text-sm text-left bg-black bg-opacity-50 p-4 border border-gray-700 rounded text-gray-300">
+                    <p class="text-blue-400 font-bold mb-2">【军师推演系统】</p>
+                    <p>静态部署版内置战况分析。点击“智囊妙计”，军师会结合当前兵力、波次、谋略与布阵，给出简短的战术建议；本地存档可直接保存在浏览器中。</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="game-over-screen" class="overlay-menu" style="display: none;">
+            <div class="menu-panel">
+                <div class="title-text" id="end-title" style="color: #f44336;">城池失守</div>
+                <div class="text-2xl mb-4 font-bold text-gray-300" id="end-desc">大军压境，无力回天...</div>
+                <div class="text-xl mb-6 text-gray-400">历史停留在第 <span id="end-wave" class="text-red-500 text-3xl font-bold">1</span> 波</div>
+                <button class="btn-main" onclick="location.reload()">重新起兵</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="bottom-bar"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const SAVE_KEY = 'sanguo_td_save_v2';
+const MAX_STRATEGY = 100;
+const AI_TYPING_SPEED = 32;
+const TILE_SIZE = 50;
+
+let gameState = 'menu';
+let gameMode = 'campaign';
+let currentTheme = 'forest';
+let money = 350;
+let lives = 10;
+let wave = 1;
+let strategy = 0;
+let comboCount = 0;
+let comboTimer = 0;
+let screenShakeTimer = 0;
+let shakeMagnitude = 0;
+let isBossWave = false;
+let isAiThinking = false;
+let selectedTowerType = null;
+let lastTime = 0;
+let waveTimer = 0;
+let spawnTimer = 0;
+let enemiesSpawnedThisWave = 0;
+let currentWaveMaxEnemies = 10;
+let animationFrameId = null;
+let currentMouseX = -100;
+let currentMouseY = -100;
+
+let enemies = [];
+let towers = [];
+let projectiles = [];
+let particles = [];
+let floatingTexts = [];
+let rings = [];
+
+const pathPoints = [
+    { x: -1, y: 3 }, { x: 0, y: 3 }, { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 },
+    { x: 3, y: 4 }, { x: 3, y: 5 }, { x: 3, y: 6 }, { x: 3, y: 7 }, { x: 4, y: 7 }, { x: 5, y: 7 },
+    { x: 6, y: 7 }, { x: 7, y: 7 }, { x: 8, y: 7 }, { x: 8, y: 6 }, { x: 8, y: 5 }, { x: 8, y: 4 },
+    { x: 8, y: 3 }, { x: 8, y: 2 }, { x: 8, y: 1 }, { x: 9, y: 1 }, { x: 10, y: 1 }, { x: 11, y: 1 },
+    { x: 12, y: 1 }, { x: 13, y: 1 }, { x: 13, y: 2 }, { x: 13, y: 3 }, { x: 13, y: 4 }, { x: 13, y: 5 },
+    { x: 13, y: 6 }, { x: 13, y: 7 }, { x: 13, y: 8 }, { x: 14, y: 8 }, { x: 15, y: 8 }, { x: 16, y: 8 }
+];
+const waypoints = pathPoints.map(point => ({ x: point.x * TILE_SIZE + TILE_SIZE / 2, y: point.y * TILE_SIZE + TILE_SIZE / 2 }));
+
+const TOWER_DATA = {
+    archer:   { name: '神射', cost: 50,  range: 130, damage: 20, fireRate: 0.7, unlockWave: 1, skillCost: 0,  scaleDmg: 8,  scaleRange: 5,  desc: '单体速射' },
+    zhangfei: { name: '张飞', cost: 120, range: 110, damage: 50, fireRate: 1.5, unlockWave: 3, skillCost: 20, scaleDmg: 20, scaleRange: 10, desc: '据水断桥 (20谋略)' },
+    guanyu:   { name: '关羽', cost: 160, range: 150, damage: 80, fireRate: 2.0, unlockWave: 6, skillCost: 30, scaleDmg: 35, scaleRange: 15, desc: '水淹七军 (30谋略)' },
+    zhuge:    { name: '诸葛', cost: 250, range: 200, damage: 45, fireRate: 1.3, unlockWave: 9, skillCost: 50, scaleDmg: 20, scaleRange: 20, desc: '八卦神阵 (50谋略)' }
+};
+
+const THEMES = {
+    forest: { bg1: '#334d28', bg2: '#1b2a14', pathIn: '#5d4037', pathOut: '#3e2723', decor1: '#1e3f20', decor2: '#2d5a27' },
+    desert: { bg1: '#c2b280', bg2: '#968656', pathIn: '#e0cfa0', pathOut: '#a69666', decor1: '#5c4a30', decor2: '#8b7355' },
+    snow:   { bg1: '#dce8f2', bg2: '#b0c4de', pathIn: '#f0f8ff', pathOut: '#8395a7', decor1: '#ffffff', decor2: '#a4b0be' }
+};
+
+const bgCanvas = document.createElement('canvas');
+bgCanvas.width = 800;
+bgCanvas.height = 500;
+const bgCtx = bgCanvas.getContext('2d');
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+
+    if (type === 'shoot') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+        gainNode.gain.setValueAtTime(0.05, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'hit') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(100, now);
+        osc.frequency.exponentialRampToValueAtTime(10, now + 0.1);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    } else if (type === 'levelUp') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(800, now + 0.2);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+    } else if (type === 'skill') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+        gainNode.gain.setValueAtTime(0.2, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        osc.start(now);
+        osc.stop(now + 0.5);
+    } else if (type === 'boss') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(50, now);
+        osc.frequency.linearRampToValueAtTime(150, now + 1);
+        gainNode.gain.setValueAtTime(0.3, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 1.5);
+        osc.start(now);
+        osc.stop(now + 1.5);
+    } else if (type === 'advisor') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.linearRampToValueAtTime(900, now + 0.3);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+        osc.start(now);
+        osc.stop(now + 0.6);
+    }
+}
+
+function showToast(msg) {
+    const el = document.getElementById('toast-msg');
+    el.innerText = msg;
+    el.style.opacity = 1;
+    setTimeout(() => { el.style.opacity = 0; }, 2000);
+}
+
+function setAdvisorText(text, showCursor = false) {
+    const textBox = document.getElementById('ai-text-box');
+    textBox.textContent = text;
+    if (showCursor) {
+        const cursor = document.createElement('span');
+        cursor.className = 'typing-indicator';
+        textBox.appendChild(cursor);
+    }
+}
+
+function typeAdvisorMessage(text) {
+    let index = 0;
+    function tick() {
+        if (index < text.length) {
+            index += 1;
+            setAdvisorText(text.slice(0, index), true);
+            setTimeout(tick, AI_TYPING_SPEED);
+        } else {
+            setAdvisorText(text, false);
+            isAiThinking = false;
+        }
+    }
+    tick();
+}
+
+function getTowerCounts() {
+    const counts = { archer: 0, zhangfei: 0, guanyu: 0, zhuge: 0 };
+    towers.forEach(tower => { counts[tower.type] += 1; });
+    return counts;
+}
+
+function getActiveEnemies() {
+    return enemies.filter(enemy => enemy.active !== false && enemy.hp > 0);
+}
+
+function generateAdvisorAdvice() {
+    const counts = getTowerCounts();
+    const activeEnemies = getActiveEnemies();
+    const frontlinePressure = activeEnemies.filter(enemy => enemy.waypointIndex >= 12).length;
+
+    if (lives <= 3 && frontlinePressure >= 2) return '城防吃紧，先补终点前火力，莫贪大件。';
+    if (strategy >= 50 && counts.zhuge > 0 && activeEnemies.length >= 4) return '敌军已聚，八卦可开，此刻出手最划算。';
+    if (strategy >= 30 && counts.guanyu > 0 && activeEnemies.length >= 4) return '云长可动，等敌成串，一刀连营更痛快。';
+    if (strategy >= 20 && counts.zhangfei > 0 && frontlinePressure >= 1) return '前线已近城门，翼德一喝，先把敌阵震回去。';
+    if (money >= 250 && wave >= 9 && counts.zhuge === 0) return '军资已足，可请孔明坐镇中军，稳住全局。';
+    if (money >= 160 && wave >= 6 && counts.guanyu === 0) return '中段杀伤略薄，速请云长，清线更利。';
+    if (money >= 120 && wave >= 3 && counts.zhangfei === 0) return '桥头少猛将，先立张飞，守线更硬。';
+    if (money >= 100) return '铜钱尚足，前后两段各补一塔，阵脚更稳。';
+    if (activeEnemies.length >= 6) return '敌众我寡，守弯道与终点前，切莫摊薄火力。';
+    return '局势尚稳，攒钱等转折，再落关键一子。';
+}
+
+async function fetchGeminiAdvice() { return generateAdvisorAdvice(); }
+
+function serializeGame() {
+    return {
+        version: 2,
+        gameMode,
+        currentTheme,
+        money,
+        lives,
+        wave,
+        strategy,
+        towers: towers.map(tower => ({ type: tower.type, gx: tower.gridX, gy: tower.gridY, level: tower.level, xp: tower.xp }))
+    };
+}
+
+function isBossWaveNumber(waveNum) {
+    return (gameMode === 'campaign' && waveNum === 10) || (gameMode === 'endless' && waveNum % 10 === 0);
+}
+
+function getWaveEnemyCount(waveNum) {
+    if (isBossWaveNumber(waveNum)) return 1;
+    if (waveNum <= 1) return 10;
+    return 10 + Math.floor(waveNum * 1.5);
+}
+
+function syncWaveState(resetProgress = true) {
+    isBossWave = isBossWaveNumber(wave);
+    currentWaveMaxEnemies = getWaveEnemyCount(wave);
+    if (resetProgress) {
+        enemiesSpawnedThisWave = 0;
+        spawnTimer = 0;
+        waveTimer = 0;
+    }
+}
+
+function resetPlacementSelection() {
+    selectedTowerType = null;
+    document.querySelectorAll('.tower-btn').forEach(button => button.classList.remove('selected'));
+}
+
+function hideOverlaysForPlay() {
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('game-over-screen').style.display = 'none';
+}
+
+function showMainMenu() {
+    gameState = 'menu';
+    document.getElementById('main-menu').style.display = 'flex';
+    document.getElementById('game-over-screen').style.display = 'none';
+    document.getElementById('ai-advisor-panel').style.display = 'none';
+}
+
+function startLoop() {
+    if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+    lastTime = performance.now();
+    animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+function applyTowerProgress(tower, level, xp) {
+    let xpToNext = 50;
+    tower.level = 1;
+    tower.xp = 0;
+    tower.xpToNext = xpToNext;
+
+    for (let currentLevel = 1; currentLevel < level; currentLevel += 1) {
+        tower.level += 1;
+        tower.data.damage += tower.data.scaleDmg;
+        tower.data.range += tower.data.scaleRange;
+        if (tower.type === 'archer') tower.data.fireRate *= 0.9;
+        xpToNext = Math.floor(xpToNext * 1.5);
+    }
+
+    tower.xp = xp;
+    tower.xpToNext = xpToNext;
+}
+
+document.getElementById('btn-advisor').onclick = async () => {
+    if (gameState !== 'playing' || isAiThinking) return;
+    isAiThinking = true;
+    document.getElementById('ai-advisor-panel').style.display = 'block';
+    setAdvisorText('主公，臣正在推演破敌之策...', true);
+    playSound('advisor');
+    const advice = await fetchGeminiAdvice();
+    typeAdvisorMessage(advice);
+};
+
+document.getElementById('btn-save').onclick = () => {
+    try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(serializeGame()));
+        showToast('✓ 已保存到本地');
+    } catch (error) {
+        console.error(error);
+        showToast('保存失败');
+    }
+};
+
+document.getElementById('btn-load').onclick = () => {
+    try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw) {
+            showToast('暂无本地存档');
+            return;
+        }
+        const data = JSON.parse(raw);
+        gameMode = data.gameMode || 'campaign';
+        currentTheme = data.currentTheme || 'forest';
+        money = Number(data.money) || 350;
+        lives = Number(data.lives) || 10;
+        wave = Math.max(1, Number(data.wave) || 1);
+        strategy = Number(data.strategy) || 0;
+        towers = (data.towers || []).map(savedTower => {
+            const tower = new Tower(savedTower.type, savedTower.gx, savedTower.gy);
+            applyTowerProgress(tower, Math.max(1, savedTower.level || 1), Math.max(0, savedTower.xp || 0));
+            return tower;
+        });
+        enemies = [];
+        projectiles = [];
+        particles = [];
+        floatingTexts = [];
+        rings = [];
+        comboCount = 0;
+        comboTimer = 0;
+        screenShakeTimer = 0;
+        shakeMagnitude = 0;
+        resetPlacementSelection();
+        syncWaveState(true);
+        initBackground();
+        buildBottomBar();
+        updateUI();
+        hideOverlaysForPlay();
+        document.getElementById('ai-advisor-panel').style.display = 'none';
+        gameState = 'playing';
+        startLoop();
+        showToast('✓ 已读取本地存档');
+    } catch (error) {
+        console.error(error);
+        showToast('读取失败');
+    }
+};
+
+document.getElementById('btn-theme').onclick = () => {
+    const themes = ['forest', 'desert', 'snow'];
+    currentTheme = themes[(themes.indexOf(currentTheme) + 1) % themes.length];
+    initBackground();
+    showToast(`地貌切换: ${currentTheme}`);
+};
+
+function initBackground() {
+    const theme = THEMES[currentTheme];
+    const grad = bgCtx.createRadialGradient(400, 250, 50, 400, 250, 600);
+    grad.addColorStop(0, theme.bg1);
+    grad.addColorStop(1, theme.bg2);
+    bgCtx.fillStyle = grad;
+    bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+
+    bgCtx.lineJoin = 'round';
+    bgCtx.lineCap = 'round';
+    bgCtx.lineWidth = TILE_SIZE + 4;
+    bgCtx.strokeStyle = 'rgba(0,0,0,0.3)';
+    bgCtx.beginPath();
+    bgCtx.moveTo(waypoints[0].x, waypoints[0].y + 6);
+    waypoints.forEach(point => bgCtx.lineTo(point.x, point.y + 6));
+    bgCtx.stroke();
+
+    bgCtx.lineWidth = TILE_SIZE;
+    bgCtx.strokeStyle = theme.pathOut;
+    bgCtx.beginPath();
+    bgCtx.moveTo(waypoints[0].x, waypoints[0].y);
+    waypoints.forEach(point => bgCtx.lineTo(point.x, point.y));
+    bgCtx.stroke();
+
+    bgCtx.lineWidth = TILE_SIZE - 10;
+    bgCtx.strokeStyle = theme.pathIn;
+    bgCtx.setLineDash([12, 6]);
+    bgCtx.beginPath();
+    bgCtx.moveTo(waypoints[0].x, waypoints[0].y);
+    waypoints.forEach(point => bgCtx.lineTo(point.x, point.y));
+    bgCtx.stroke();
+    bgCtx.setLineDash([]);
+
+    for (let i = 0; i < 40; i += 1) {
+        const tx = Math.sin(i * 123) * 400 + 400;
+        const ty = Math.cos(i * 321) * 250 + 250;
+        if (waypoints.some(point => Math.hypot(point.x - tx, point.y - ty) < TILE_SIZE + 10)) continue;
+        bgCtx.shadowBlur = 4;
+        bgCtx.shadowColor = 'rgba(0,0,0,0.5)';
+        bgCtx.fillStyle = theme.decor1;
+        bgCtx.beginPath();
+        bgCtx.arc(tx, ty, 15, 0, Math.PI * 2);
+        bgCtx.fill();
+        bgCtx.fillStyle = theme.decor2;
+        bgCtx.beginPath();
+        bgCtx.arc(tx - 3, ty - 3, 10, 0, Math.PI * 2);
+        bgCtx.fill();
+        bgCtx.shadowBlur = 0;
+    }
+
+    bgCtx.fillStyle = '#b71c1c';
+    bgCtx.fillRect(waypoints[0].x - 15, waypoints[0].y - 35, 30, 70);
+    const endPoint = waypoints[waypoints.length - 2];
+    bgCtx.fillStyle = '#424242';
+    bgCtx.fillRect(endPoint.x - 40, endPoint.y - 40, 80, 80);
+    bgCtx.fillStyle = '#1e88e5';
+    bgCtx.fillRect(endPoint.x - 20, endPoint.y - 20, 40, 40);
+}
+
+function drawArtSymbol(drawCtx, type, size) {
+    drawCtx.save();
+    if (type === 'archer') {
+        drawCtx.strokeStyle = '#e0e0e0';
+        drawCtx.lineWidth = 3;
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, size * 0.8, -Math.PI / 2, Math.PI / 2);
+        drawCtx.stroke();
+        drawCtx.strokeStyle = 'rgba(255,255,255,0.5)';
+        drawCtx.lineWidth = 1;
+        drawCtx.beginPath();
+        drawCtx.moveTo(0, -size * 0.8);
+        drawCtx.lineTo(0, size * 0.8);
+        drawCtx.stroke();
+        drawCtx.fillStyle = '#f1c40f';
+        drawCtx.fillRect(-size * 0.6, -1, size * 1.2, 2);
+        drawCtx.beginPath();
+        drawCtx.moveTo(size * 0.6, 0);
+        drawCtx.lineTo(size * 0.3, -4);
+        drawCtx.lineTo(size * 0.3, 4);
+        drawCtx.fill();
+    } else if (type === 'zhangfei') {
+        drawCtx.strokeStyle = '#5d4037';
+        drawCtx.lineWidth = 4;
+        drawCtx.beginPath();
+        drawCtx.moveTo(-size * 0.8, size * 0.8);
+        drawCtx.lineTo(size * 0.4, -size * 0.4);
+        drawCtx.stroke();
+        drawCtx.strokeStyle = '#bdc3c7';
+        drawCtx.lineWidth = 3;
+        drawCtx.lineJoin = 'round';
+        drawCtx.beginPath();
+        drawCtx.moveTo(size * 0.4, -size * 0.4);
+        drawCtx.lineTo(size * 0.6, -size * 0.5);
+        drawCtx.lineTo(size * 0.7, -size * 0.7);
+        drawCtx.lineTo(size * 0.9, -size * 0.9);
+        drawCtx.stroke();
+    } else if (type === 'guanyu') {
+        drawCtx.strokeStyle = '#27ae60';
+        drawCtx.lineWidth = 4;
+        drawCtx.beginPath();
+        drawCtx.moveTo(-size * 0.7, size * 0.7);
+        drawCtx.lineTo(size * 0.3, -size * 0.3);
+        drawCtx.stroke();
+        drawCtx.fillStyle = '#95a5a6';
+        drawCtx.beginPath();
+        drawCtx.arc(size * 0.4, -size * 0.4, size * 0.4, -Math.PI * 0.8, -Math.PI * 0.2);
+        drawCtx.lineTo(size * 0.2, -size * 0.2);
+        drawCtx.fill();
+    } else if (type === 'zhuge') {
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, size * 0.7, 0, Math.PI * 2);
+        drawCtx.fillStyle = '#fff';
+        drawCtx.fill();
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, size * 0.7, Math.PI / 2, Math.PI * 1.5);
+        drawCtx.fillStyle = '#000';
+        drawCtx.fill();
+        drawCtx.beginPath();
+        drawCtx.arc(0, -size * 0.35, size * 0.35, 0, Math.PI * 2);
+        drawCtx.fillStyle = '#000';
+        drawCtx.fill();
+        drawCtx.beginPath();
+        drawCtx.arc(0, size * 0.35, size * 0.35, 0, Math.PI * 2);
+        drawCtx.fillStyle = '#fff';
+        drawCtx.fill();
+        drawCtx.beginPath();
+        drawCtx.arc(0, -size * 0.35, size * 0.1, 0, Math.PI * 2);
+        drawCtx.fillStyle = '#fff';
+        drawCtx.fill();
+        drawCtx.beginPath();
+        drawCtx.arc(0, size * 0.35, size * 0.1, 0, Math.PI * 2);
+        drawCtx.fillStyle = '#000';
+        drawCtx.fill();
+    }
+    drawCtx.restore();
+}
+
+function buildBottomBar() {
+    const bar = document.getElementById('bottom-bar');
+    bar.innerHTML = '';
+    Object.keys(TOWER_DATA).forEach(type => {
+        const data = TOWER_DATA[type];
+        const isLocked = wave < data.unlockWave;
+        const button = document.createElement('div');
+        button.className = `tower-btn ${isLocked ? 'locked' : ''}`;
+        button.id = `btn-${type}`;
+        button.onclick = () => { if (!isLocked) selectTower(type); };
+
+        const iconCanvas = document.createElement('canvas');
+        iconCanvas.width = 50;
+        iconCanvas.height = 50;
+        const iconCtx = iconCanvas.getContext('2d');
+        iconCtx.translate(25, 25);
+        drawArtSymbol(iconCtx, type, 20);
+
+        button.innerHTML = `<div class="tower-icon" style="background-image: url(${iconCanvas.toDataURL()}); background-size: cover;"></div>
+            <div class="font-bold">${data.name}</div><div class="text-sm text-yellow-500 font-bold mt-1">💰 ${data.cost}</div>
+            <div class="text-xs text-gray-400 mt-1 text-center">${data.desc}</div>${isLocked ? `<div class="lock-overlay">第${data.unlockWave}波解锁</div>` : ''}`;
+        bar.appendChild(button);
+    });
+}
+
+class Enemy {
+    constructor(waveNum, boss = false) {
+        this.x = waypoints[0].x;
+        this.y = waypoints[0].y;
+        this.waypointIndex = 0;
+        this.isBoss = boss;
+        this.active = true;
+        const hpMultiplier = Math.pow(1.15, waveNum);
+        if (boss) {
+            this.maxHp = 3000 * Math.max(1, Math.floor(waveNum / 10));
+            this.speed = 40;
+            this.color = '#b71c1c';
+            this.char = '吕布';
+            this.radius = 28;
+            this.reward = 1000;
+        } else {
+            const rand = Math.random();
+            if (rand < 0.25 && waveNum > 2) {
+                this.maxHp = 150 * hpMultiplier; this.speed = 35; this.color = '#795548'; this.char = '盾'; this.radius = 18; this.reward = 15;
+            } else if (rand < 0.45 && waveNum > 4) {
+                this.maxHp = 80 * hpMultiplier; this.speed = 85; this.color = '#6a1b9a'; this.char = '骑'; this.radius = 14; this.reward = 12;
+            } else {
+                this.maxHp = 60 * hpMultiplier; this.speed = 55; this.color = '#f57f17'; this.char = '贼'; this.radius = 13; this.reward = 8;
+            }
+        }
+        this.hp = this.maxHp;
+        this.freezeTimer = 0;
+    }
+
+    update(dt) {
+        if (!this.active) return;
+        if (this.freezeTimer > 0) {
+            this.freezeTimer -= dt;
+            if (!this.isBoss) return;
+        }
+        const target = waypoints[this.waypointIndex];
+        if (!target) return;
+        const currentSpeed = (this.isBoss && this.freezeTimer > 0) ? this.speed * 0.5 : this.speed;
+        const moveAmount = currentSpeed * dt;
+        if (getDistance(this, target) <= moveAmount) {
+            this.x = target.x;
+            this.y = target.y;
+            this.waypointIndex += 1;
+            if (this.waypointIndex >= waypoints.length) {
+                this.hp = 0;
+                this.active = false;
+                lives = this.isBoss ? 0 : lives - 1;
+                triggerScreenShake(20, 0.5);
+                updateUI();
+                if (lives <= 0) gameOver();
+            }
+        } else {
+            const angle = Math.atan2(target.y - this.y, target.x - this.x);
+            this.x += Math.cos(angle) * moveAmount;
+            this.y += Math.sin(angle) * moveAmount;
+        }
+    }
+
+    draw(drawCtx) {
+        if (!this.active) return;
+        if (this.isBoss) {
+            drawCtx.shadowBlur = 20;
+            drawCtx.shadowColor = 'red';
+            drawCtx.beginPath();
+            drawCtx.arc(this.x, this.y, this.radius + Math.sin(Date.now() / 100) * 5, 0, Math.PI * 2);
+            drawCtx.strokeStyle = 'rgba(255,0,0,0.8)';
+            drawCtx.lineWidth = 4;
+            drawCtx.stroke();
+            drawCtx.shadowBlur = 0;
+        }
+        drawCtx.beginPath();
+        drawCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        drawCtx.fillStyle = this.color;
+        drawCtx.fill();
+        drawCtx.lineWidth = 2;
+        drawCtx.strokeStyle = '#000';
+        drawCtx.stroke();
+        drawCtx.fillStyle = '#fff';
+        drawCtx.font = 'bold 14px Microsoft YaHei';
+        drawCtx.textAlign = 'center';
+        drawCtx.textBaseline = 'middle';
+        drawCtx.fillText(this.char, this.x, this.y);
+        if (!this.isBoss) {
+            const hpPercent = Math.max(0, this.hp / this.maxHp);
+            drawCtx.fillStyle = '#000';
+            drawCtx.fillRect(this.x - 15, this.y - this.radius - 10, 30, 4);
+            drawCtx.fillStyle = hpPercent > 0.5 ? '#2ecc71' : '#e74c3c';
+            drawCtx.fillRect(this.x - 15, this.y - this.radius - 10, 30 * hpPercent, 4);
+        }
+    }
+}
+
+class Tower {
+    constructor(type, gridX, gridY) {
+        this.type = type;
+        this.data = { ...TOWER_DATA[type] };
+        this.x = gridX * TILE_SIZE + TILE_SIZE / 2;
+        this.y = gridY * TILE_SIZE + TILE_SIZE / 2;
+        this.gridX = gridX;
+        this.gridY = gridY;
+        this.cooldown = 0;
+        this.level = 1;
+        this.xp = 0;
+        this.xpToNext = 50;
+        this.animTimer = 0;
+        this.skillAnimTimer = 0;
+    }
+
+    gainXp(amount) {
+        if (this.level >= 5) return;
+        this.xp += amount;
+        while (this.level < 5 && this.xp >= this.xpToNext) {
+            this.level += 1;
+            this.xp -= this.xpToNext;
+            this.xpToNext = Math.floor(this.xpToNext * 1.5);
+            this.data.damage += this.data.scaleDmg;
+            this.data.range += this.data.scaleRange;
+            if (this.type === 'archer') this.data.fireRate *= 0.9;
+            addFloatingText('等级提升!', this.x, this.y - 40, '#ffb300', 24, true);
+            createParticles(this.x, this.y, '#ffb300', 20);
+            playSound('levelUp');
+        }
+    }
+
+    update(dt) {
+        if (this.cooldown > 0) this.cooldown -= dt;
+        if (this.animTimer > 0) this.animTimer -= dt;
+        if (this.skillAnimTimer > 0) this.skillAnimTimer -= dt;
+        if (this.cooldown > 0) return;
+
+        let bestTarget = null;
+        let maxProgress = -1;
+        for (const enemy of enemies) {
+            if (!enemy.active || enemy.hp <= 0) continue;
+            if (getDistance(this, enemy) <= this.data.range) {
+                const nextWaypoint = waypoints[Math.min(enemy.waypointIndex, waypoints.length - 1)];
+                let progress = enemy.waypointIndex * 1000 + (TILE_SIZE - getDistance(enemy, nextWaypoint));
+                if (enemy.isBoss) progress += 10000;
+                if (progress > maxProgress) {
+                    bestTarget = enemy;
+                    maxProgress = progress;
+                }
+            }
+        }
+
+        if (bestTarget) {
+            projectiles.push(new Projectile(this.x, this.y, bestTarget, this.data.damage, this.type, this));
+            this.cooldown = this.data.fireRate;
+            this.animTimer = 0.15;
+            playSound('shoot');
+        }
+    }
+
+    castSkill() {
+        if (this.data.skillCost === 0 || strategy < this.data.skillCost) return false;
+        strategy -= this.data.skillCost;
+        this.skillAnimTimer = 0.5;
+        updateUI();
+        triggerScreenShake(12, 0.3);
+        playSound('skill');
+
+        if (this.type === 'zhuge') {
+            addFloatingText('八卦神阵！', this.x, this.y - 40, '#29b6f6', 28, true);
+            enemies.forEach(enemy => {
+                if (!enemy.active) return;
+                enemy.hp -= this.data.damage * 3;
+                enemy.freezeTimer = 2.5;
+                createParticles(enemy.x, enemy.y, '#29b6f6', 10);
+                tryHandleEnemyDeath(enemy, this);
+            });
+            createRing(this.x, this.y, this.data.range * 1.2, 'rgba(41, 182, 246, 0.55)');
+            this.gainXp(30);
+        } else if (this.type === 'guanyu') {
+            addFloatingText('水淹七军！', this.x, this.y - 40, '#2ecc71', 28, true);
+            const radius = this.data.range * 1.5;
+            enemies.forEach(enemy => {
+                if (!enemy.active) return;
+                if (getDistance(this, enemy) <= radius) {
+                    enemy.hp -= this.data.damage * 6;
+                    createParticles(enemy.x, enemy.y, '#2ecc71', 15);
+                    tryHandleEnemyDeath(enemy, this);
+                }
+            });
+            createRing(this.x, this.y, radius, 'rgba(46, 204, 113, 0.6)');
+            this.gainXp(20);
+        } else if (this.type === 'zhangfei') {
+            addFloatingText('燕人张飞在此！', this.x, this.y - 40, '#ff7043', 28, true);
+            const radius = this.data.range * 1.2;
+            enemies.forEach(enemy => {
+                if (!enemy.active) return;
+                if (getDistance(this, enemy) <= radius) {
+                    enemy.hp -= this.data.damage * 2;
+                    if (!enemy.isBoss && enemy.waypointIndex > 0) {
+                        enemy.waypointIndex = Math.max(0, enemy.waypointIndex - 1);
+                        enemy.x = waypoints[enemy.waypointIndex].x;
+                        enemy.y = waypoints[enemy.waypointIndex].y;
+                    }
+                    createParticles(enemy.x, enemy.y, '#ff7043', 10);
+                    tryHandleEnemyDeath(enemy, this);
+                }
+            });
+            createRing(this.x, this.y, radius, 'rgba(255, 112, 67, 0.6)');
+            this.gainXp(15);
+        }
+        return true;
+    }
+
+    draw(drawCtx) {
+        drawCtx.save();
+        drawCtx.translate(this.x, this.y);
+        if (this.skillAnimTimer > 0) drawCtx.translate(Math.random() * 6 - 3, Math.random() * 6 - 3);
+        else if (this.animTimer > 0) drawCtx.translate(0, -3);
+        drawCtx.beginPath();
+        drawCtx.ellipse(0, 18, 20, 8, 0, 0, Math.PI * 2);
+        drawCtx.fillStyle = 'rgba(0,0,0,0.6)';
+        drawCtx.fill();
+        const frameColor = this.level === 5 ? '#ffb300' : (this.level >= 3 ? '#9e9e9e' : '#5d4037');
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, 20, 0, Math.PI * 2);
+        drawCtx.fillStyle = frameColor;
+        drawCtx.fill();
+        drawCtx.beginPath();
+        drawCtx.arc(0, 0, 17, 0, Math.PI * 2);
+        drawCtx.fillStyle = '#1a1a1a';
+        drawCtx.fill();
+        drawArtSymbol(drawCtx, this.type, 14);
+        drawCtx.fillStyle = '#ffb300';
+        drawCtx.font = 'bold 11px Arial';
+        drawCtx.textAlign = 'center';
+        drawCtx.fillText(`Lv.${this.level}`, 0, 26);
+        if (this.data.skillCost > 0 && strategy >= this.data.skillCost) {
+            drawCtx.shadowBlur = 15;
+            drawCtx.shadowColor = '#0277bd';
+            drawCtx.beginPath();
+            drawCtx.arc(0, 0, 24, 0, Math.PI * 2);
+            drawCtx.strokeStyle = `rgba(41, 182, 246, ${Math.abs(Math.sin(Date.now() / 200))})`;
+            drawCtx.lineWidth = 2;
+            drawCtx.stroke();
+            drawCtx.shadowBlur = 0;
+        }
+        drawCtx.restore();
+    }
+}
+
+class Projectile {
+    constructor(x, y, target, damage, type, sourceTower) {
+        this.x = x;
+        this.y = y;
+        this.target = target;
+        this.damage = damage;
+        this.type = type;
+        this.sourceTower = sourceTower;
+        this.speed = 500;
+        this.active = true;
+        this.angle = 0;
+    }
+
+    update(dt) {
+        if (!this.target || !this.target.active || this.target.hp <= 0) {
+            this.active = false;
+            return;
+        }
+        const distance = getDistance(this, this.target);
+        const moveAmount = this.speed * dt;
+        this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+        if (distance <= moveAmount) {
+            this.target.hp -= this.damage;
+            this.active = false;
+            let particleColor = '#fff';
+            if (this.type === 'zhuge') particleColor = '#29b6f6';
+            if (this.type === 'guanyu') particleColor = '#2ecc71';
+            if (this.type === 'zhangfei') particleColor = '#ff7043';
+            createParticles(this.target.x, this.target.y, particleColor, 8);
+            playSound('hit');
+            tryHandleEnemyDeath(this.target, this.sourceTower);
+        } else {
+            this.x += Math.cos(this.angle) * moveAmount;
+            this.y += Math.sin(this.angle) * moveAmount;
+            if (Math.random() < 0.5) createParticles(this.x, this.y, 'rgba(255,255,255,0.3)', 1);
+        }
+    }
+
+    draw(drawCtx) {
+        drawCtx.save();
+        drawCtx.translate(this.x, this.y);
+        drawCtx.rotate(this.angle);
+        if (this.type === 'archer') {
+            drawCtx.fillStyle = '#fff';
+            drawCtx.fillRect(-8, -1, 16, 2);
+            drawCtx.beginPath();
+            drawCtx.moveTo(8, 0);
+            drawCtx.lineTo(2, -4);
+            drawCtx.lineTo(2, 4);
+            drawCtx.fill();
+        } else if (this.type === 'zhuge') {
+            drawCtx.beginPath();
+            drawCtx.arc(0, 0, 6, 0, Math.PI * 2);
+            drawCtx.fillStyle = '#29b6f6';
+            drawCtx.fill();
+        } else if (this.type === 'guanyu') {
+            drawCtx.beginPath();
+            drawCtx.arc(0, 0, 12, -Math.PI / 2, Math.PI / 2);
+            drawCtx.fillStyle = '#2ecc71';
+            drawCtx.fill();
+        } else {
+            drawCtx.beginPath();
+            drawCtx.arc(0, 0, 6, 0, Math.PI * 2);
+            drawCtx.fillStyle = '#ff7043';
+            drawCtx.fill();
+        }
+        drawCtx.restore();
+    }
+}
+
+class Particle {
+    constructor(x, y, color, isConfetti = false) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * (isConfetti ? 200 : 80) + 20;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.life = Math.random() * 0.5 + 0.3;
+        this.maxLife = this.life;
+        this.isConfetti = isConfetti;
+    }
+
+    update(dt) {
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+        if (this.isConfetti) this.vy += 300 * dt;
+        this.life -= dt;
+    }
+
+    draw(drawCtx) {
+        drawCtx.globalAlpha = Math.max(0, this.life / this.maxLife);
+        drawCtx.fillStyle = this.color;
+        drawCtx.fillRect(this.x, this.y, this.isConfetti ? 6 : 3, this.isConfetti ? 6 : 3);
+        drawCtx.globalAlpha = 1;
+    }
+}
+
+class FloatingText {
+    constructor(text, x, y, color, size = 16, bold = false) {
+        this.text = text;
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.life = 1;
+        this.vy = -40;
+        this.font = `${bold ? 'bold' : ''} ${size}px Zhi Mang Xing`;
+    }
+
+    update(dt) {
+        this.y += this.vy * dt;
+        this.life -= dt;
+    }
+
+    draw(drawCtx) {
+        drawCtx.globalAlpha = Math.max(0, this.life);
+        drawCtx.fillStyle = this.color;
+        drawCtx.font = this.font;
+        drawCtx.textAlign = 'center';
+        drawCtx.strokeStyle = 'black';
+        drawCtx.lineWidth = 3;
+        drawCtx.strokeText(this.text, this.x, this.y);
+        drawCtx.fillText(this.text, this.x, this.y);
+        drawCtx.globalAlpha = 1;
+    }
+}
+
+function createRing(x, y, radius, color) {
+    rings.push({ x, y, radius, color, life: 0.4, maxLife: 0.4, maxRadius: radius });
+}
+
+function createParticles(x, y, color, count, isConfetti = false) {
+    for (let i = 0; i < count; i += 1) particles.push(new Particle(x, y, color, isConfetti));
+}
+
+function addFloatingText(text, x, y, color, size = 16, bold = false) {
+    floatingTexts.push(new FloatingText(text, x, y, color, size, bold));
+}
+
+function handleEnemyDeath(enemy, sourceTower) {
+    money += enemy.reward;
+    strategy = Math.min(MAX_STRATEGY, strategy + (enemy.isBoss ? 30 : 4));
+    if (sourceTower) sourceTower.gainXp(enemy.reward);
+    createParticles(enemy.x, enemy.y, '#ffb300', 15);
+    addFloatingText(`+${enemy.reward}`, enemy.x, enemy.y, '#ffb300', 18, true);
+
+    comboCount += 1;
+    comboTimer = 2;
+    if (comboCount > 2) {
+        const comboUI = document.getElementById('combo-display');
+        comboUI.innerText = `连斩 x${comboCount}!`;
+        comboUI.classList.add('active');
+        setTimeout(() => comboUI.classList.remove('active'), 150);
+        if (comboCount % 5 === 0) {
+            money += 30;
+            addFloatingText('天下无双 +30', enemy.x, enemy.y - 20, '#ff5252', 26, true);
+        }
+    }
+
+    if (enemy.isBoss) {
+        isBossWave = false;
+        if (gameMode === 'campaign') {
+            showGameOverScreen('天下归心', '讨伐成功，太平盛世降临！', '通关', '#ffb300');
+        } else {
+            money += 1000;
+            showToast('成功击杀魔化吕布！无尽模式继续');
+        }
+        createParticles(canvas.width / 2, canvas.height / 2, '#ffb300', 300, true);
+    }
+}
+
+function tryHandleEnemyDeath(enemy, sourceTower) {
+    if (enemy.hp <= 0 && enemy.active !== false) {
+        enemy.active = false;
+        handleEnemyDeath(enemy, sourceTower);
+        updateUI();
+        return true;
+    }
+    return false;
+}
+
+function triggerScreenShake(magnitude, duration) {
+    shakeMagnitude = magnitude;
+    screenShakeTimer = duration;
+}
+
+function getDistance(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function showGameOverScreen(title, desc, waveText, color = '#f44336') {
+    gameState = 'gameover';
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('end-title').innerText = title;
+    document.getElementById('end-title').style.color = color;
+    document.getElementById('end-desc').innerText = desc;
+    document.getElementById('end-wave').innerText = waveText;
+    document.getElementById('game-over-screen').style.display = 'flex';
+    document.getElementById('ai-advisor-panel').style.display = 'none';
+    resetPlacementSelection();
+}
+
+function gameOver() {
+    showGameOverScreen('城池失守', '大军压境，无力回天...', `${wave}`);
+}
+
+function updateUI() {
+    document.getElementById('money-display').innerText = money;
+    document.getElementById('lives-display').innerText = lives;
+    document.getElementById('wave-display').innerText = isBossWave ? '神将降临' : `第 ${wave} 波`;
+    document.getElementById('strategy-bar').style.width = `${(strategy / MAX_STRATEGY) * 100}%`;
+    document.getElementById('strategy-text').innerText = `${Math.floor(strategy)} / ${MAX_STRATEGY} 谋略`;
+
+    Object.keys(TOWER_DATA).forEach(type => {
+        const button = document.getElementById(`btn-${type}`);
+        if (button && !button.classList.contains('locked')) {
+            button.classList.toggle('disabled', money < TOWER_DATA[type].cost);
+        }
+    });
+}
+
+function selectTower(type) {
+    if (money < TOWER_DATA[type].cost) return;
+    selectedTowerType = type;
+    document.querySelectorAll('.tower-btn').forEach(button => button.classList.remove('selected'));
+    document.getElementById(`btn-${type}`).classList.add('selected');
+}
+window.selectTower = selectTower;
+
+function resetGameState() {
+    money = 350;
+    lives = 10;
+    wave = 1;
+    strategy = 0;
+    comboCount = 0;
+    comboTimer = 0;
+    screenShakeTimer = 0;
+    shakeMagnitude = 0;
+    enemies = [];
+    towers = [];
+    projectiles = [];
+    particles = [];
+    floatingTexts = [];
+    rings = [];
+    resetPlacementSelection();
+    syncWaveState(true);
+}
+
+document.getElementById('btn-campaign').onclick = () => { gameMode = 'campaign'; startGame(); };
+document.getElementById('btn-endless').onclick = () => { gameMode = 'endless'; startGame(); };
+document.getElementById('btn-menu').onclick = () => { showMainMenu(); };
+
+function startGame() {
+    hideOverlaysForPlay();
+    document.getElementById('ai-advisor-panel').style.display = 'none';
+    resetGameState();
+    initBackground();
+    buildBottomBar();
+    updateUI();
+    gameState = 'playing';
+    startLoop();
+}
+
+canvas.addEventListener('mousedown', event => {
+    if (gameState !== 'playing') return;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    const gridX = Math.floor(mouseX / TILE_SIZE);
+    const gridY = Math.floor(mouseY / TILE_SIZE);
+
+    if (gridX < 0 || gridY < 0 || gridX >= canvas.width / TILE_SIZE || gridY >= canvas.height / TILE_SIZE) return;
+
+    const clickedTower = towers.find(tower => tower.gridX === gridX && tower.gridY === gridY);
+    if (clickedTower) {
+        clickedTower.castSkill();
+        return;
+    }
+
+    if (!selectedTowerType) return;
+    if (pathPoints.some(point => point.x === gridX && point.y === gridY)) {
+        addFloatingText('道路阻塞!', mouseX, mouseY, '#ff5252');
+        return;
+    }
+    if (towers.some(tower => tower.gridX === gridX && tower.gridY === gridY)) {
+        addFloatingText('此处已有驻军!', mouseX, mouseY, '#ff5252');
+        return;
+    }
+
+    const cost = TOWER_DATA[selectedTowerType].cost;
+    if (money >= cost) {
+        money -= cost;
+        towers.push(new Tower(selectedTowerType, gridX, gridY));
+        createParticles(mouseX, mouseY, '#d4af37', 15);
+        triggerScreenShake(2, 0.1);
+        resetPlacementSelection();
+        updateUI();
+    }
+});
+
+canvas.addEventListener('mousemove', event => {
+    const rect = canvas.getBoundingClientRect();
+    currentMouseX = event.clientX - rect.left;
+    currentMouseY = event.clientY - rect.top;
+});
+
+function gameLoop(timestamp) {
+    if (gameState !== 'playing') {
+        animationFrameId = null;
+        return;
+    }
+
+    const dt = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    if (screenShakeTimer > 0) {
+        screenShakeTimer -= dt;
+        ctx.translate((Math.random() - 0.5) * shakeMagnitude, (Math.random() - 0.5) * shakeMagnitude);
+    }
+
+    ctx.drawImage(bgCanvas, 0, 0);
+    if (isBossWave) {
+        ctx.fillStyle = 'rgba(183, 28, 28, 0.15)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    if (comboTimer > 0) {
+        comboTimer -= dt;
+        if (comboTimer <= 0) {
+            comboCount = 0;
+            document.getElementById('combo-display').classList.remove('active');
+        }
+    }
+
+    spawnTimer += dt;
+    if (enemiesSpawnedThisWave < currentWaveMaxEnemies) {
+        if (spawnTimer > (isBossWave ? 2 : 0.8)) {
+            enemies.push(new Enemy(wave, isBossWave));
+            enemiesSpawnedThisWave += 1;
+            spawnTimer = 0;
+            if (isBossWave) playSound('boss');
+        }
+    } else if (getActiveEnemies().length === 0) {
+        waveTimer += dt;
+        if (waveTimer > 2.5) {
+            wave += 1;
+            syncWaveState(true);
+            if (isBossWave) {
+                triggerScreenShake(25, 2);
+                showToast('⚠️ 虎牢关神将 ⚠️');
+            }
+            money += 100 + wave * 20;
+            addFloatingText(`第 ${wave} 波`, canvas.width / 2, canvas.height / 2, '#ffb300', 36, true);
+            createParticles(canvas.width / 2, canvas.height / 2, '#ffb300', 50, true);
+            buildBottomBar();
+            updateUI();
+        }
+    }
+
+    if (strategy < MAX_STRATEGY) {
+        strategy = Math.min(MAX_STRATEGY, strategy + dt * 4);
+        updateUI();
+    }
+
+    for (let i = towers.length - 1; i >= 0; i -= 1) {
+        towers[i].update(dt);
+        towers[i].draw(ctx);
+    }
+
+    for (let i = enemies.length - 1; i >= 0; i -= 1) {
+        const enemy = enemies[i];
+        enemy.update(dt);
+        enemy.draw(ctx);
+        if (enemy.hp <= 0 || enemy.active === false) enemies.splice(i, 1);
+    }
+
+    for (let i = projectiles.length - 1; i >= 0; i -= 1) {
+        const projectile = projectiles[i];
+        projectile.update(dt);
+        projectile.draw(ctx);
+        if (!projectile.active) projectiles.splice(i, 1);
+    }
+
+    for (let i = particles.length - 1; i >= 0; i -= 1) {
+        particles[i].update(dt);
+        particles[i].draw(ctx);
+        if (particles[i].life <= 0) particles.splice(i, 1);
+    }
+
+    for (let i = rings.length - 1; i >= 0; i -= 1) {
+        rings[i].life -= dt;
+        if (rings[i].life > 0) {
+            const progress = 1 - rings[i].life / rings[i].maxLife;
+            ctx.beginPath();
+            ctx.arc(rings[i].x, rings[i].y, rings[i].maxRadius * progress, 0, Math.PI * 2);
+            ctx.strokeStyle = rings[i].color;
+            ctx.lineWidth = 6 * (1 - progress);
+            ctx.stroke();
+        } else {
+            rings.splice(i, 1);
+        }
+    }
+
+    for (let i = floatingTexts.length - 1; i >= 0; i -= 1) {
+        floatingTexts[i].update(dt);
+        floatingTexts[i].draw(ctx);
+        if (floatingTexts[i].life <= 0) floatingTexts.splice(i, 1);
+    }
+
+    if (isBossWave) {
+        const boss = enemies.find(enemy => enemy.isBoss && enemy.active);
+        if (boss) {
+            const hpPercent = Math.max(0, boss.hp / boss.maxHp);
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.fillRect(150, 20, 500, 20);
+            ctx.fillStyle = '#b71c1c';
+            ctx.fillRect(150, 20, 500 * hpPercent, 20);
+            ctx.strokeStyle = '#ffb300';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(150, 20, 500, 20);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 16px Microsoft YaHei';
+            ctx.textAlign = 'center';
+            ctx.fillText(`魔化神将 吕布 ${Math.floor(boss.hp)}/${boss.maxHp}`, 400, 35);
+        }
+    }
+
+    if (selectedTowerType && currentMouseX >= 0 && currentMouseY >= 0) {
+        const px = Math.floor(currentMouseX / TILE_SIZE) * TILE_SIZE + TILE_SIZE / 2;
+        const py = Math.floor(currentMouseY / TILE_SIZE) * TILE_SIZE + TILE_SIZE / 2;
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        ctx.arc(px, py, TOWER_DATA[selectedTowerType].range, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.save();
+        ctx.translate(px, py);
+        drawArtSymbol(ctx, selectedTowerType, 20);
+        ctx.restore();
+    }
+
+    ctx.restore();
+    if (gameState === 'playing') {
+        animationFrameId = requestAnimationFrame(gameLoop);
+    } else {
+        animationFrameId = null;
+    }
+}
+
+initBackground();
+buildBottomBar();
+updateUI();
+</script>
+</body>
+</html>
