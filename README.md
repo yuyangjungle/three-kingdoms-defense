@@ -7,7 +7,6 @@
 - GitHub 仓库：[yuyangjungle/three-kingdoms-defense](https://github.com/yuyangjungle/three-kingdoms-defense)
 - GitHub Pages：`https://yuyangjungle.github.io/three-kingdoms-defense/`
 
-说明：当前公开地址为 `/three-kingdoms-defense/`。若 GitHub Pages 还未开启，上面的体验链接会返回 `404`；启用后即可直接访问。
 
 ## 项目亮点
 
@@ -58,44 +57,13 @@
 └── README.md
 ```
 
-之所以只有一个 `index.html`，是因为样式和脚本都内联在同一个文件里，部署门槛低，便于直接托管和快速体验。
 
 ## 本地运行
 
 直接用浏览器打开 `index.html` 即可运行。
 
-如果想用本地静态服务器，也可以在当前目录执行任意一种方式：
 
-```bash
-python -m http.server 8000
-```
-
-或
-
-```bash
-npx serve .
-```
-
-## 部署说明
-
-本项目适合部署到 GitHub Pages：
-
-1. 将代码推送到 GitHub 仓库
-2. 打开 `Settings -> Pages`
-3. 在 `Build and deployment` 中选择 `Deploy from a branch`
-4. 选择 `main` 分支和 `/(root)`
-5. 保存后等待 GitHub Pages 发布
-
-默认访问地址通常为：
-
-```text
-https://<github-username>.github.io/<repo-name>/
-```
-
-当前仓库名为 `three-kingdoms-defense`，因此地址会是：
-
-```text
-https://yuyangjungle.github.io/three-kingdoms-defense/
+angjungle.github.io/three-kingdoms-defense/
 ```
 
 ## 后续规划
